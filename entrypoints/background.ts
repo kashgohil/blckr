@@ -30,8 +30,24 @@ export default defineBackground(() => {
     if (!rule) return false;
 
     const today = todayKey();
-    const dailyBlocked = s.dailyBlocks[today]?.includes(rule.domain);
     const hardBlock = !rule.timeLimitMinutes;
+    const dailyBlocked = s.dailyBlocks[today]?.includes(rule.domain);
+
+    // Self-heal: if a time-based rule's flag is stale (current usage is now
+    // under the limit — e.g. the user raised the allowance), clear it.
+    if (!hardBlock && dailyBlocked) {
+      const used = s.usage[today]?.[rule.domain] ?? 0;
+      const limit = rule.timeLimitMinutes! * 60;
+      if (used < limit) {
+        const cleaned = (s.dailyBlocks[today] ?? []).filter(
+          (d) => d !== rule.domain,
+        );
+        await saveState({
+          dailyBlocks: { ...s.dailyBlocks, [today]: cleaned },
+        });
+        return false;
+      }
+    }
 
     if (hardBlock || dailyBlocked) {
       const reason = hardBlock ? "blocked" : "timeup";
@@ -130,6 +146,22 @@ export default defineBackground(() => {
     for (const t of tabs) {
       if (t.id != null && t.url) await redirectIfBlocked(t.id, t.url, state);
     }
+  });
+
+  browser.runtime.onMessage.addListener((msg, sender) => {
+    if (msg?.type === "blckr:check-redirect") {
+      const tabId = sender.tab?.id;
+      const url = sender.tab?.url;
+      if (tabId != null && url) {
+        (async () => {
+          // Force-flush accrued time so usage reflects the moment the pill
+          // hit zero, then run the standard redirect logic.
+          await flushTime();
+          await redirectIfBlocked(tabId, url);
+        })();
+      }
+    }
+    return false;
   });
 
   browser.alarms.create("blckr-tick", { periodInMinutes: TICK_SECONDS / 60 });
