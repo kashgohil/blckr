@@ -4,7 +4,7 @@ import { defineConfig } from "wxt";
 export default defineConfig({
   modules: ["@wxt-dev/module-vue"],
   manifest: {
-    name: "Blckr",
+    name: "Timelock",
     version: "1.0.0",
     description: "Block distractions and focus on what matters most.",
     permissions: ["storage", "tabs", "webNavigation", "alarms"],
@@ -16,7 +16,7 @@ export default defineConfig({
       },
     ],
     action: {
-      default_title: "Blckr - Block distractions",
+      default_title: "Timelock - Block distractions",
     },
   },
   manifestVersion: 3,
